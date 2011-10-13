@@ -22,4 +22,4 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyTitle("CouchDude Scheme Manager")]
 [assembly: AssemblyDescription("CouchDude scheme manager library assembly.")]
 
-[assembly: InternalsVisibleTo("CouchDude.Tests")]
+[assembly: InternalsVisibleTo("CouchDude.SchemeManager.Tests")]

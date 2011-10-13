@@ -123,7 +123,7 @@ namespace CouchDude.Tests.Unit.SchemeManager
 
 			Assert.Equal("http://example.com/_design/doc1", httpClientMock.Request.RequestUri.ToString());
 			Assert.Equal("PUT", httpClientMock.Request.Method.ToString());
-			Assert.Equal(docAWithoutRev.ToString(), httpClientMock.Request.Content.GetTextReader().ReadToEnd(), new JTokenStringCompairer());
+			Assert.Equal(docAWithoutRev.ToString(), httpClientMock.Request.Content.ReadAsString(), new JTokenStringCompairer());
 		}
 		
 		[Fact]
@@ -146,7 +146,7 @@ namespace CouchDude.Tests.Unit.SchemeManager
 			
 			var expectedDoc = (JObject)docB2WithoutRev.DeepClone();
 			expectedDoc["_rev"] = docB["_rev"];
-			Assert.Equal(expectedDoc.ToString(), httpClientMock.Request.Content.GetTextReader().ReadToEnd(), new JTokenStringCompairer());
+			Assert.Equal(expectedDoc.ToString(), httpClientMock.Request.Content.ReadAsString(), new JTokenStringCompairer());
 		}
 
 		private static Dictionary<string, DesignDocument> CreateDesignDocumentMap(params JObject[] objects)
