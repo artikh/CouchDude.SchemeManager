@@ -27,7 +27,7 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Xunit;
 
-namespace CouchDude.Tests
+namespace CouchDude.SchemeManager.Tests
 {
 	internal static class TestUtils
 	{

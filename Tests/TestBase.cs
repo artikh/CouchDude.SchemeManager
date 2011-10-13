@@ -18,7 +18,7 @@
 
 using System.Collections.Specialized;
 
-namespace CouchDude.Tests
+namespace CouchDude.SchemeManager.Tests
 {
 	public abstract class TestBase
 	{

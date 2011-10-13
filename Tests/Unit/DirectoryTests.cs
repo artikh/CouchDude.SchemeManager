@@ -24,7 +24,7 @@ using CouchDude.SchemeManager;
 using Xunit;
 using Directory = CouchDude.SchemeManager.Directory;
 
-namespace CouchDude.Tests.Unit.SchemeManager
+namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 {
 	public class DirectoryTests: IDisposable
 	{

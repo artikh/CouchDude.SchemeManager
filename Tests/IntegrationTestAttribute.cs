@@ -19,7 +19,7 @@
 using System;
 using Xunit;
 
-namespace CouchDude.Tests
+namespace CouchDude.SchemeManager.Tests
 {
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
 	public class IntegrationTestAttribute : TraitAttribute

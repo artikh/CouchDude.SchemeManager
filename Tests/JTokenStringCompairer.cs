@@ -21,7 +21,7 @@ using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace CouchDude.Tests
+namespace CouchDude.SchemeManager.Tests
 {
 	public class JTokenStringCompairer: IEqualityComparer<string>
 	{

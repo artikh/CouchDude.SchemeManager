@@ -22,7 +22,7 @@ using CouchDude.Http;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace CouchDude.Tests
+namespace CouchDude.SchemeManager.Tests
 {
 	internal class HttpClientMock: IHttpClient
 	{

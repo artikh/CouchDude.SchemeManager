@@ -24,7 +24,7 @@ using CouchDude.SchemeManager;
 using Newtonsoft.Json.Linq;
 using Xunit;
 
-namespace CouchDude.Tests.Unit.SchemeManager
+namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 {
 	public class DesignDocumentExtractorTest
 	{

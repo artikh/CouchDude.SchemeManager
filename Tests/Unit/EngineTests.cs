@@ -28,7 +28,7 @@ using Moq;
 using Newtonsoft.Json.Linq;
 using Xunit;
 
-namespace CouchDude.Tests.Unit.SchemeManager
+namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 {
 	public class EngineTests
 	{

@@ -25,7 +25,7 @@ using Newtonsoft.Json.Linq;
 using Xunit;
 using Xunit.Extensions;
 
-namespace CouchDude.Tests.Unit.SchemeManager
+namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 {
 	public class DesignDocumentAssemblerTests : TestBase
 	{
