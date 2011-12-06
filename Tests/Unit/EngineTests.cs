@@ -22,7 +22,6 @@ using System.IO;
 using System.Linq;
 
 using CouchDude.SchemeManager;
-using CouchDude.Http;
 
 using Moq;
 using Newtonsoft.Json.Linq;
@@ -57,9 +56,9 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		public void ShuldPassGenerateRequestThroughTo()
 		{
 			var engine = new Engine(
-				new HttpClientMock(),
 				Mock.Of<IDesignDocumentExtractor>(), 
-				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docA)));
+				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docA)),
+				new MockMessageHandler());
 
 			var generatedJsonStingDocs = engine.Generate().ToArray();
 
@@ -71,11 +70,11 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		public void ShouldReturnFalseIfHaveNotChanged()
 		{
 			var engine = new Engine(
-				new HttpClientMock(),
 				Mock.Of<IDesignDocumentExtractor>(
 					e => e.Extract(It.IsAny<TextReader>()) == CreateDesignDocumentMap(docA, docB, docC)
 					),
-				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docBWithoutRev, docCWithoutRev)));
+				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docBWithoutRev, docCWithoutRev)),
+				new MockMessageHandler());
 
 			Assert.False(engine.CheckIfChanged(new Uri("http://example.com")));
 		}
@@ -84,11 +83,11 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		public void ShouldReturnTrueIfThereAreMoreDocumentOnDisk()
 		{
 			var engine = new Engine(
-				new HttpClientMock(),
 				Mock.Of<IDesignDocumentExtractor>(
 					e => e.Extract(It.IsAny<TextReader>()) == CreateDesignDocumentMap(docA, docB)
-					), 
-				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docBWithoutRev, docCWithoutRev)));
+					),
+				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docBWithoutRev, docCWithoutRev)),
+				new MockMessageHandler());
 
 			Assert.True(engine.CheckIfChanged(new Uri("http://example.com")));
 		}
@@ -97,11 +96,11 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		public void ShouldReturnTrueIfDocumentOnDiskHaveChanged()
 		{
 			var engine = new Engine(
-				new HttpClientMock(),
 				Mock.Of<IDesignDocumentExtractor>(
 					e => e.Extract(It.IsAny<TextReader>()) == CreateDesignDocumentMap(docA, docB, docC)
-					), 
-				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docB2WithoutRev, docCWithoutRev)));
+					),
+				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docB2WithoutRev, docCWithoutRev)),
+				new MockMessageHandler());
 
 			Assert.True(engine.CheckIfChanged(new Uri("http://example.com")));
 		}
@@ -109,44 +108,44 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		[Fact]
 		public void ShouldPushNewDocumensWithoutRevisionsWithPut()
 		{
-			var httpClientMock = new HttpClientMock();
+			var mockHandler = new MockMessageHandler();
 			
 			var engine = new Engine(
-				httpClientMock,
 				Mock.Of<IDesignDocumentExtractor>(
 					e => e.Extract(It.IsAny<TextReader>()) == new Dictionary<string, DesignDocument>(0)
 				),
-				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev))
+				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev)),
+				mockHandler
 			);
 
 			engine.PushIfChanged(new Uri("http://example.com"));
 
-			Assert.Equal("http://example.com/_design/doc1", httpClientMock.Request.RequestUri.ToString());
-			Assert.Equal("PUT", httpClientMock.Request.Method.ToString());
-			Assert.Equal(docAWithoutRev.ToString(), httpClientMock.Request.Content.ReadAsString(), new JTokenStringCompairer());
+			Assert.Equal("http://example.com/_design/doc1", mockHandler.Request.RequestUri.ToString());
+			Assert.Equal("PUT", mockHandler.Request.Method.ToString());
+			Assert.Equal(docAWithoutRev.ToString(), mockHandler.RequestBody, new JTokenStringCompairer());
 		}
 		
 		[Fact]
 		public void ShouldPushUpdatedDocumensWithDbDocumentRevisionWithPut()
 		{
-			var httpClientMock = new HttpClientMock();
+			var mockHandler = new MockMessageHandler();
 			
 			var engine = new Engine(
-				httpClientMock,
 				Mock.Of<IDesignDocumentExtractor>(
 					e => e.Extract(It.IsAny<TextReader>()) == CreateDesignDocumentMap(docB)
 				),
-				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docB2WithoutRev))
+				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docB2WithoutRev)),
+				mockHandler
 			);
 
 			engine.PushIfChanged(new Uri("http://example.com"));
 
-			Assert.Equal("http://example.com/_design/doc2", httpClientMock.Request.RequestUri.ToString());
-			Assert.Equal("PUT", httpClientMock.Request.Method.ToString());
+			Assert.Equal("http://example.com/_design/doc2", mockHandler.Request.RequestUri.ToString());
+			Assert.Equal("PUT", mockHandler.Request.Method.ToString());
 			
 			var expectedDoc = (JObject)docB2WithoutRev.DeepClone();
 			expectedDoc["_rev"] = docB["_rev"];
-			Assert.Equal(expectedDoc.ToString(), httpClientMock.Request.Content.ReadAsString(), new JTokenStringCompairer());
+			Assert.Equal(expectedDoc.ToString(), mockHandler.RequestBody, new JTokenStringCompairer());
 		}
 
 		private static Dictionary<string, DesignDocument> CreateDesignDocumentMap(params JObject[] objects)

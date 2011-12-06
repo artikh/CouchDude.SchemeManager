@@ -22,30 +22,41 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading.Tasks;
 using Common.Logging;
-using CouchDude.Http;
 using Newtonsoft.Json;
 
 namespace CouchDude.SchemeManager
 {
 	/// <summary>Orchestrates Couch Dude's actions.</summary>
-	public class Engine
+	public class Engine: HttpClient
 	{
 		private static readonly ILog Log = LogManager.GetCurrentClassLogger();
 
-		private readonly IHttpClient httpClient;
 		private readonly IDesignDocumentAssembler designDocumentAssembler;
 		private readonly IDesignDocumentExtractor designDocumentExtractor;
-		
+
 		/// <constructor />
-		internal Engine(IHttpClient httpClient, IDesignDocumentExtractor designDocumentExtractor, IDesignDocumentAssembler designDocumentAssembler)
+		internal Engine(IDesignDocumentExtractor designDocumentExtractor, IDesignDocumentAssembler designDocumentAssembler)
 		{
-			if(httpClient == null) throw new ArgumentNullException("httpClient");
+			if (designDocumentAssembler == null)
+				throw new ArgumentNullException("designDocumentAssembler");
+
+
+			this.designDocumentExtractor = designDocumentExtractor;
+			this.designDocumentAssembler = designDocumentAssembler;
+		}
+
+		/// <constructor />
+		internal Engine(
+			IDesignDocumentExtractor designDocumentExtractor, IDesignDocumentAssembler designDocumentAssembler, HttpMessageHandler messageHandler)
+			: base(messageHandler)
+		{
+			if(messageHandler == null) throw new ArgumentNullException("messageHandler");
 			if(designDocumentAssembler == null) 
 				throw new ArgumentNullException("designDocumentAssembler");
 			
 
-			this.httpClient = httpClient;
 			this.designDocumentExtractor = designDocumentExtractor;
 			this.designDocumentAssembler = designDocumentAssembler;
 		}
@@ -55,9 +66,8 @@ namespace CouchDude.SchemeManager
 		{
 			var directory = new Directory(directoryInfo);
 			var documentAssembler = new DesignDocumentAssembler(directory);
-			var httpClient = new HttpClientImpl();
 			var designDocumentExtractor = new DesignDocumentExtractor();
-			return new Engine(httpClient, designDocumentExtractor, documentAssembler);
+			return new Engine(designDocumentExtractor, documentAssembler);
 		}
 
 		/// <summary>Checks if database design document set have changed comparing with
@@ -76,7 +86,7 @@ namespace CouchDude.SchemeManager
 			var docsFromDatabase = GetDesignDocumentsFromDatabase(databaseUri);
 			var docsFromFileSystem = GetDesignDocumentsFromFileSystem();
 
-			return GetChangedDocuments(docsFromFileSystem, docsFromDatabase).Count() > 0;
+			return GetChangedDocuments(docsFromFileSystem, docsFromDatabase).Any();
 		}
 
 		/// <summary>Updates database design document set with one generated from file system
@@ -107,9 +117,11 @@ namespace CouchDude.SchemeManager
 				var documentUri = new Uri(databaseUri, changedDoc.Id);
 				changedDoc.Definition.ToString(Formatting.None);
 
-				var request = new HttpRequestMessage(HttpMethod.Put, documentUri);
-				request.SetStringContent(changedDoc.Definition.ToString(Formatting.None));
-				httpClient.MakeRequest(request);
+				var request = new HttpRequestMessage(HttpMethod.Put, documentUri) {
+					Content = new StringContent(changedDoc.Definition.ToString(Formatting.None))
+				};
+				var response = SendAsync(request).Result;
+				response.EnsureSuccessStatusCode();
 			}
 		}
 
@@ -130,8 +142,10 @@ namespace CouchDude.SchemeManager
 			//var changedDocs = GetChangedDocuments(docsFromFileSystem, docsFromDatabase);
 			//Log.InfoFormat("{0} design documents will be pushed to database.", changedDocs.Count);
 
-			httpClient.MakeRequest(new HttpRequestMessage(HttpMethod.Delete, databaseUri));
-			httpClient.MakeRequest(new HttpRequestMessage(HttpMethod.Put, databaseUri));
+			Task.WaitAll(
+				SendAsync(new HttpRequestMessage(HttpMethod.Delete, databaseUri)),
+				SendAsync(new HttpRequestMessage(HttpMethod.Put, databaseUri))
+			);
 		}
 
 		/// <summary>Generates design documents from directory content.</summary>
@@ -185,11 +199,15 @@ namespace CouchDude.SchemeManager
 			var request = new HttpRequestMessage(
 				HttpMethod.Get, 
 				databaseUri + @"_all_docs?startkey=""_design/""&endkey=""_design0""&include_docs=true");
-			var response = httpClient.MakeRequest(request);
-			var designDocumentsFromDatabase = designDocumentExtractor.Extract(response.GetContentTextReader());
-			Log.InfoFormat(
-				"{0} design documens downloaded from database.", designDocumentsFromDatabase.Count);
-			return designDocumentsFromDatabase;
+			var response = SendAsync(request).Result;
+			using(var stream = response.Content.ReadAsStreamAsync().Result)
+			using (var reader = new StreamReader(stream))
+			{
+				var designDocumentsFromDatabase = designDocumentExtractor.Extract(reader);
+				Log.InfoFormat(
+					"{0} design documens downloaded from database.", designDocumentsFromDatabase.Count);
+				return designDocumentsFromDatabase;
+			}
 		}
 
 		private IDictionary<string, DesignDocument> GetDesignDocumentsFromFileSystem()
