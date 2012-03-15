@@ -77,16 +77,11 @@ namespace CouchDude.SchemeManager.Tests
 			return JObject.FromObject(self, JsonSerializer.Create(GetJsonSerializerSettings()));
 		}
 
-		public static IDocument ToDocument(this object self)
+		public static Document ToDocument(this object self)
 		{
 			return new Document(self.ToJsonString());
 		}
-
-		public static IJsonFragment ToJsonFragment(this object self)
-		{
-			return new JsonFragment(self.ToJsonString());
-		}
-
+		
 		public static TextReader ToJsonTextReader(this object self)
 		{
 			return self.ToJsonString().ToTextReader();

@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core", "Core\Core.csproj", "{B4C845DC-F039-44EE-982D-E13E9F83DA7B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core", "Src\Core\Core.csproj", "{B4C845DC-F039-44EE-982D-E13E9F83DA7B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Console", "Console\Console.csproj", "{0EE56959-B986-4AAE-90B6-1F56AF5A2404}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Console", "Src\Console\Console.csproj", "{0EE56959-B986-4AAE-90B6-1F56AF5A2404}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gui", "Gui\Gui.csproj", "{E4351E8F-228F-4B6D-943E-BE765297B87A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gui", "Src\Gui\Gui.csproj", "{E4351E8F-228F-4B6D-943E-BE765297B87A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{F8A42327-20C8-4E64-8907-8F895CE16571}"
 EndProject
