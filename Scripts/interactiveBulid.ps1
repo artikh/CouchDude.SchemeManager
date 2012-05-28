@@ -1,5 +1,6 @@
-function exec
-{
+. .\Scripts\utils.ps1
+
+function exec {
     [CmdletBinding()]
     param(
         [Parameter(Position=0,Mandatory=1)][scriptblock]$cmd,
@@ -15,45 +16,33 @@ if ( (get-command invoke-psake -ErrorAction SilentlyContinue) -eq $null ) {
     Import-Module .\Scripts\psake.psm1
 }
 
-$globalAssemblyInfo = (cat .\GlobalAssemblyInfo.cs)
-
-$match = [regex]::Match($globalAssemblyInfo, '\[assembly: AssemblyVersion\("([\.\d]+)"\)\]')
-$currentVersion = $match.Groups[1].Value
+$currentVersion = detectVersion -assemblyInfoFileName .\GlobalAssemblyInfo.cs
 
 echo "Current version is $currentVersion"
 
-$versionSegments = $currentVersion.Split('.')
-$lastVersionSegmentIndex = $versionSegments.Length - 1
-$lastVersionSegment = $versionSegments[$lastVersionSegmentIndex]
-$lastVersion = [int]::Parse($lastVersionSegment)
-$lastVersion++
+$suggestedNewVersion = incrementVersion $currentVersion
 
-$versionSegments[$lastVersionSegmentIndex] = $lastVersion.ToString()
-$suggestedNewVersion = [string]::Join('.', $versionSegments)
+while((verifyVersion $newVersion) -eq $null) {
+    if($newVersion -ne $null) {
+        Write-Host "Version is malformed please try again"
+    }
 
-while($true) {
     try {
         $newVersion = (Read-Host -Prompt "Enter new version [$suggestedNewVersion]")
     } catch { }
 
     if ($newVersion.ToLower().StartsWith('c')) {
         Write-Host "Using current version"
+        
         $newVersion = $currentVersion
     } else {
         if ($newVersion.Length -eq 0) {
             $newVersion = $suggestedNewVersion;
         }
-        Write-Host "Using version $newVersion"
-    }
-
-    if( -not ($newVersion -match "^([1-9]\d*|0)\.([1-9]\d*|0)\.([1-9]\d*|0)$")) {
-        Write-Host "Version is malformed please try again"
-    }
-    else {
-        break
     }
 }
 
+Write-Host "Using version $newVersion"
 
 try {
     $taskList = (Read-Host -Prompt "Enter task list [default]")
@@ -85,8 +74,9 @@ try {
 
 if ($psake.build_success -and $commit) {
     Write-Host "Committing changes"
+    exec { git add . }
     exec { git add -u }
-    exec { git commit }
+    exec { git commit -m "v$newVersion" --edit }
 
     Write-Host "Creating tag"
     exec { git tag -f "v$newVersion" }
