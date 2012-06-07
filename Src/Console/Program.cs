@@ -62,17 +62,22 @@ namespace CouchDude.SchemeManager.Console
 
 		public sealed class Options
 		{
+			public Options() { 
+				Command = CommandType.Help;
+				BaseDirectory = string.Empty;
+			}
+
 			[Option("c", "command", Required = true, HelpText = "help|generate|check|push")]
-			public CommandType Command = CommandType.Help;
+			public CommandType Command { get; set; }
 
 			[Option("a", "address", HelpText = "Database URL")]
-			public string DatabaseUrl;
+			public string DatabaseUrl { get; set; }
 
 			[Option("v", "verbose", HelpText = "Log diagnostics to console window")]
-			public bool Verbose;
+			public bool Verbose { get; set; }
 
 			[Option("d", "directory", HelpText = "Base directory for document generation")]
-			public string BaseDirectory = string.Empty;
+			public string BaseDirectory { get; set; }
 			
 			[HelpOption(HelpText = "Dispaly this help screen")]
 			public string GetUsage()
