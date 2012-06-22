@@ -19,48 +19,36 @@
 using System;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace CouchDude.SchemeManager.Tests
 {
 	internal class MockMessageHandler : HttpMessageHandler
 	{
-		private readonly Exception exception;
-		private readonly HttpResponseMessage response;
-		public HttpRequestMessage Request { get; private set; }
+		public Func<HttpRequestMessage, HttpResponseMessage> ProcessRequest { get; private set; }
 		public string RequestBody { get; private set; }
+		public HttpRequestMessage Request { get; private set; }
 
 		public MockMessageHandler(string responseText) : this(HttpStatusCode.OK, responseText) { }
 
 		public MockMessageHandler(HttpStatusCode code, string responseText)
 			: this(new HttpResponseMessage {StatusCode = code, Content = new StringContent(responseText)}) { }
-
-		public MockMessageHandler(HttpResponseMessage response = null)
-		{
-			this.response = response
-				??
-				new HttpResponseMessage
-				{StatusCode = HttpStatusCode.OK, Content = new StringContent("\"ok\":true")};
-		}
-
-		public MockMessageHandler(Exception exception)
-		{
-			this.exception = exception;
-		}
+		public MockMessageHandler()
+			: this(new HttpResponseMessage {
+				StatusCode = HttpStatusCode.OK,
+				Content = new StringContent("{\"ok\":true}", Encoding.UTF8, "application/json")
+			}) { }
+		public MockMessageHandler(HttpResponseMessage response): this(_ => response) { }
+		public MockMessageHandler(Exception exception): this(_ => { throw exception; }) {  }
+		public MockMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> processRequest) { ProcessRequest = processRequest; }
 		
 		protected override Task<HttpResponseMessage> SendAsync(
 			HttpRequestMessage request, System.Threading.CancellationToken cancellationToken)
 		{
 			Request = request;
 			RequestBody = Request.Content != null? Request.Content.ReadAsStringAsync().Result: null;
-			return Task.Factory.StartNew(() => SendInternal());
-		}
-
-		private HttpResponseMessage SendInternal()
-		{
-			if (exception != null)
-				throw exception;
-			return response;
+			return Task.Factory.StartNew(() => ProcessRequest(request));
 		}
 	}
 }

@@ -42,9 +42,9 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\Common.Logging.2.1.1\lib\net40\Common.Logging.dll</HintPath>
     </Reference>
-    <Reference Include="CouchDude, Version=0.26.24.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="CouchDude, Version=0.26.40.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\CouchDude.0.26.24\lib\net40\CouchDude.dll</HintPath>
+      <HintPath>..\packages\CouchDude.0.26.40\lib\net40\CouchDude.dll</HintPath>
     </Reference>
     <Reference Include="JetBrains.Annotations, Version=6.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -91,7 +91,6 @@
     <Compile Include="IntegrationTestAttribute.cs" />
     <Compile Include="MockMessageHandler.cs" />
     <Compile Include="Unit\DesignDocumentAssemblerTests.cs" />
-    <Compile Include="Unit\DesignDocumentExtractorTest.cs" />
     <Compile Include="Unit\DesignDocumentTests.cs" />
     <Compile Include="Unit\DirectoryTests.cs" />
     <Compile Include="Unit\EngineTests.cs" />

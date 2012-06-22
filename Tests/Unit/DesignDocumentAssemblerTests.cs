@@ -19,13 +19,12 @@
 using System.IO;
 using System.Linq;
 using System.Text;
-using CouchDude.SchemeManager;
 using Moq;
 using Newtonsoft.Json.Linq;
 using Xunit;
 using Xunit.Extensions;
 
-namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
+namespace CouchDude.SchemeManager.Tests.Unit
 {
 	public class DesignDocumentAssemblerTests : TestBase
 	{

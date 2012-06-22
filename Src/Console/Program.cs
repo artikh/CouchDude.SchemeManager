@@ -45,7 +45,7 @@ namespace CouchDude.SchemeManager.Console
 				return IncorrectOptionsReturnCode;
 			}
 
-			LogManager.Adapter = new ConsoleOutLoggerFactoryAdapter(options.Verbose ? LogLevel.Trace: LogLevel.Warn, false, true, true, null);
+			LogManager.Adapter = new ConsoleOutLoggerFactoryAdapter(options.Verbose ? LogLevel.Info: LogLevel.Warn, false, true, true, null);
 
 			var directoryPath = !string.IsNullOrWhiteSpace(options.BaseDirectory)? options.BaseDirectory: Environment.CurrentDirectory;
 
@@ -96,6 +96,9 @@ namespace CouchDude.SchemeManager.Console
 					break;
 				case CommandType.Push:
 					engine.PushIfChanged(url.Value, userName, password);
+					break;
+				case CommandType.Purge:
+					engine.PurgeDatabase(url.Value, userName, password);
 					break;
 				default:
 					throw new ArgumentOutOfRangeException();

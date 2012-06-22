@@ -127,7 +127,7 @@ namespace CouchDude.Gui
 					OutputBox.AppendText("\r\nPushed\r\n");
 					break;
 				case CommandType.Truncate:
-					engine.Truncate(url.Value, password);
+					engine.PurgeDatabase(url.Value, password);
 					OutputBox.AppendText("\r\nTruncated\r\n");
 					break;
 				default:

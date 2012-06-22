@@ -5,6 +5,7 @@ namespace CouchDude.SchemeManager.Console
 		Help = 0,
 		Generate,
 		Check,
-		Push
+		Push,
+		Purge
 	}
 }

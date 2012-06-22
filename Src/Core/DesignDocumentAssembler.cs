@@ -134,10 +134,7 @@ namespace CouchDude.SchemeManager
 					Log.WarnFormat("{0}\\{1} is too long.", subDirectory.Name, idFile);
 
 				if (providedId.Contains('/'))
-					Log.WarnFormat(
-						"{0}\\{1} contains slash, it should be prohibited.",
-						subDirectory.Name, 
-						idFile);
+					Log.WarnFormat("{0}\\{1} contains slash, it should be prohibited.", subDirectory.Name, idFile);
 			}
 			return providedId;
 		}

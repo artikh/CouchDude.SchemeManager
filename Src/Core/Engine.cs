@@ -22,20 +22,20 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Threading.Tasks;
 using Common.Logging;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace CouchDude.SchemeManager
 {
 	/// <summary>Orchestrates Couch Dude's actions.</summary>
-	public class Engine: HttpClient
+	public class Engine
 	{
 		private static readonly ILog Log = LogManager.GetCurrentClassLogger();
 
 		private readonly IDesignDocumentAssembler designDocumentAssembler;
+		readonly HttpMessageHandler messageHandler;
 		private readonly IDesignDocumentExtractor designDocumentExtractor;
 
 		/// <constructor />
@@ -50,9 +50,7 @@ namespace CouchDude.SchemeManager
 		}
 
 		/// <constructor />
-		internal Engine(
-			IDesignDocumentExtractor designDocumentExtractor, IDesignDocumentAssembler designDocumentAssembler, HttpMessageHandler messageHandler)
-			: base(messageHandler)
+		internal Engine(IDesignDocumentExtractor designDocumentExtractor, IDesignDocumentAssembler designDocumentAssembler, HttpMessageHandler messageHandler)
 		{
 			if(messageHandler == null) throw new ArgumentNullException("messageHandler");
 			if(designDocumentAssembler == null) 
@@ -61,6 +59,7 @@ namespace CouchDude.SchemeManager
 
 			this.designDocumentExtractor = designDocumentExtractor;
 			this.designDocumentAssembler = designDocumentAssembler;
+			this.messageHandler = messageHandler;
 		}
 
 		/// <summary>Creates engine based on provided <paramref name="directoryInfo"/>.</summary>
@@ -98,31 +97,42 @@ namespace CouchDude.SchemeManager
 			if(!databaseUri.Scheme.StartsWith("http")) 
 				throw new ArgumentException("databaseUri should be http or https", "databaseUri");
 
-			var docsFromDatabase = GetDesignDocumentsFromDatabase(databaseUri, userName, password);
 			var docsFromFileSystem = GetDesignDocumentsFromFileSystem();
-			var changedDocs = GetChangedDocuments(docsFromFileSystem, docsFromDatabase);
-			Log.InfoFormat("{0} design documents will be pushed to database.", changedDocs.Count);
 
-			foreach (var changedDoc in changedDocs) 
+			while (true)
 			{
-				//пропускает папки, создаваемые при билде солюшена
-				if (changedDoc.Id == "_design/obj" || changedDoc.Id == "_design/bin" || changedDoc.Id == "_design/Properties") continue;
+				var docsFromDatabase = GetDesignDocumentsFromDatabase(databaseUri, userName, password);
+				var changedDocs = GetChangedDocuments(docsFromFileSystem, docsFromDatabase);
+				if(changedDocs.Count == 0)
+				{
+					Log.Info("Design documents are identical now");
+					return;
+				}
+				Log.InfoFormat("{0} design documents will be pushed to the database.", changedDocs.Count);
 
-				Log.InfoFormat("Pushing document {0} to the database.", changedDoc.Id);
-
-				var documentUri = new Uri(databaseUri, changedDoc.Id);
-				changedDoc.Definition.ToString(Formatting.None);
-
-				var request = new HttpRequestMessage(HttpMethod.Put, documentUri) {
-					Content = new StringContent(changedDoc.Definition.ToString(Formatting.None))
-				};
-				var response = SendAsync(request, userName, password).Result;
-				response.EnsureSuccessStatusCode();
+				PushChangedDocsToDatabase(databaseUri, userName, password, changedDocs).Wait();
+				Log.InfoFormat("{0} design documents have been pushed to the database.", changedDocs.Count);
 			}
 		}
 
+		Task PushChangedDocsToDatabase(Uri databaseUri, string userName, string password, IEnumerable<DesignDocument> changedDocs)
+		{
+			var dbApi = ConsturctDatabaseApi(databaseUri, userName, password);
+			return dbApi.BulkUpdate(b => {
+				foreach (var changedDoc in changedDocs)
+				{
+					Log.TraceFormat("Pushing document {0} to the database.", changedDoc.Id);
+					var document = new Document(changedDoc.Definition.ToString());
+					if (changedDoc.IsNew)
+						b.Create(document);
+					else
+						b.Update(document);
+				}
+			});
+		}
+
 		/// <summary>Удаляет базу данных и создает снова.</summary>
-		public void Truncate(Uri databaseUri, string userName = null, string password = null)
+		public void PurgeDatabase(Uri databaseUri, string userName = null, string password = null)
 		{
 			if (databaseUri == null) throw new ArgumentNullException("databaseUri");
 			if (!databaseUri.IsAbsoluteUri)
@@ -130,26 +140,52 @@ namespace CouchDude.SchemeManager
 			if (!databaseUri.Scheme.StartsWith("http"))
 				throw new ArgumentException("databaseUri should be http or https", "databaseUri");
 
-			Task.WaitAll(
-				SendAsync(new HttpRequestMessage(HttpMethod.Delete, databaseUri), userName, password),
-				SendAsync(new HttpRequestMessage(HttpMethod.Put, databaseUri), userName, password)
-			);
+
+			Log.InfoFormat("Purging database {0}", databaseUri);
+
+			PurgeDatabaseInternal(databaseUri, userName, password).Wait();
 		}
 
-
-		Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, string userName, string password)
+		async Task PurgeDatabaseInternal(Uri databaseUri, string userName, string password)
 		{
-			if(userName != null && password != null)
+			const int batchSize = 1000;
+
+			var dbApi = ConsturctDatabaseApi(databaseUri, userName, password);
+			while (true)
 			{
-				var credentialsString = string.Concat(userName, ":", password);
-				var credentialsBytes = Encoding.UTF8.GetBytes(credentialsString);
-				var base64String = Convert.ToBase64String(credentialsBytes);
-				request.Headers.Authorization = new AuthenticationHeaderValue("Basic", base64String);
+				var batchRequestResult = await dbApi.Query(new ViewQuery {
+					ViewName = "_all_docs",
+					IncludeDocs = false,
+					Limit = batchSize
+				});
+				if (batchRequestResult.Count == 0)
+				{
+					Log.Info("No more documents to purge from database");
+					return;
+				}
+				Log.InfoFormat("Deleting {0} documents", batchRequestResult.Count);
+				await dbApi.BulkUpdate(
+					b => {
+						foreach (var row in batchRequestResult.Rows)
+						{
+							var docId = row.DocumentId;
+							var docRevision = (string) row.Value["rev"];
+							b.Delete(docId, docRevision);
+						}
+					});
 			}
-
-			return base.SendAsync(request);
 		}
-
+		
+		IDatabaseApi ConsturctDatabaseApi(Uri databaseUri, string userName, string password)
+		{
+			var serverUriString = databaseUri.GetComponents(
+				UriComponents.SchemeAndServer, UriFormat.SafeUnescaped);
+			var databaseName = databaseUri.LocalPath.Trim('/');
+			var settings = new CouchApiSettings(serverUriString);
+			if(userName != null && password != null)
+				settings.Credentials = new Credentials(userName, password);
+			return settings.CreateCouchApi(messageHandler).Db(databaseName);
+		}
 
 		/// <summary>Generates design documents from directory content.</summary>
 		public IEnumerable<string> Generate()
@@ -169,12 +205,14 @@ namespace CouchDude.SchemeManager
 				DesignDocument docFromDb;
 				if (!docsFromDb.TryGetValue(docFromFs.Id, out docFromDb))
 				{
-					Log.InfoFormat("Design document {0} is new:\n{1}", docFromFs.Id, docFromFs.Definition);
+					Log.InfoFormat("Design document {0} is new", docFromFs.Id);
+					Log.Trace(docFromFs.Definition);
 					changedDocuments.Add(docFromFs);
 				}
 				else if (docFromDb != docFromFs)
 				{
-					Log.InfoFormat("Design document {0} have changed:\n{1}", docFromFs.Id, docFromFs.Definition);
+					Log.InfoFormat("Design document {0} have changed", docFromFs.Id);
+					Log.Trace(docFromFs.Definition);
 					changedDocuments.Add(docFromFs.CopyWithRevision(docFromDb.Revision));
 				}
 			}
@@ -193,26 +231,25 @@ namespace CouchDude.SchemeManager
 		private IDictionary<string, DesignDocument> GetDesignDocumentsFromDatabase(Uri databaseUri, string userName, string password) 
 		{
 			Log.Info("Downloading design documents from database...");
-			var request = new HttpRequestMessage(
-				HttpMethod.Get, 
-				databaseUri + @"_all_docs?startkey=""_design/""&endkey=""_design0""&include_docs=true");
-			var response = SendAsync(request, userName, password).Result;
-			using(var stream = response.Content.ReadAsStreamAsync().Result)
-			using (var reader = new StreamReader(stream))
-			{
-				var designDocumentsFromDatabase = designDocumentExtractor.Extract(reader);
-				Log.InfoFormat(
-					"{0} design documens downloaded from database.", designDocumentsFromDatabase.Count);
-				return designDocumentsFromDatabase;
-			}
+
+			var dbApi = ConsturctDatabaseApi(databaseUri, userName, password);
+			var result = dbApi.Query(new ViewQuery {
+				ViewName = "_all_docs",
+				StartKey = "_design/",
+				EndKey = "_design0",
+				IncludeDocs = true
+			}).Result.Rows.Select(r => JObject.Parse(r.Document.ToString()));
+			
+			var designDocumentsFromDatabase = designDocumentExtractor.Extract(result);
+			Log.InfoFormat("{0} design documens downloaded from database.", designDocumentsFromDatabase.Count);
+			return designDocumentsFromDatabase;
 		}
 
 		private IDictionary<string, DesignDocument> GetDesignDocumentsFromFileSystem()
 		{
 			Log.Info("Creating design documents from file system...");
 			var designDocumentsFromFileSystem = designDocumentAssembler.Assemble();
-			Log.InfoFormat(
-				"{0} design documens created from file system.", designDocumentsFromFileSystem.Count);
+			Log.InfoFormat("{0} design documens created from file system.", designDocumentsFromFileSystem.Count);
 			return designDocumentsFromFileSystem;
 		}
 	}

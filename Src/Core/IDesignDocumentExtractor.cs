@@ -18,6 +18,7 @@
 
 using System.Collections.Generic;
 using System.IO;
+using Newtonsoft.Json.Linq;
 
 namespace CouchDude.SchemeManager
 {
@@ -25,6 +26,6 @@ namespace CouchDude.SchemeManager
 	public interface IDesignDocumentExtractor 
 	{
 		/// <summary>Extracts design documents.</summary>
-		IDictionary<string, DesignDocument> Extract(TextReader textReader);
+		IDictionary<string, DesignDocument> Extract(IEnumerable<JObject> rawDocuments);
 	}
 }

@@ -18,11 +18,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-
-using CouchDude.SchemeManager;
-
+using System.Net;
+using System.Net.Http;
+using System.Text;
 using Moq;
 using Newtonsoft.Json.Linq;
 using Xunit;
@@ -59,8 +58,7 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 				Mock.Of<IDesignDocumentExtractor>(), 
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docA)),
 				new MockMessageHandler());
-
-			var generatedJsonStingDocs = engine.Generate().ToArray();
+      var generatedJsonStingDocs = engine.Generate().ToArray();
 
 			Assert.Equal(1, generatedJsonStingDocs.Length);
 			Assert.Equal(docA.ToString(), generatedJsonStingDocs[0], new JTokenStringCompairer());
@@ -71,12 +69,12 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		{
 			var engine = new Engine(
 				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<TextReader>()) == CreateDesignDocumentMap(docA, docB, docC)
-					),
+					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == CreateDesignDocumentMap(docA, docB, docC)
+				),
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docBWithoutRev, docCWithoutRev)),
-				new MockMessageHandler());
+				GetNoResultsMessageHandler());
 
-			Assert.False(engine.CheckIfChanged(new Uri("http://example.com")));
+			Assert.False(engine.CheckIfChanged(new Uri("http://example.com/db1")));
 		}
 
 		[Fact]
@@ -84,12 +82,12 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		{
 			var engine = new Engine(
 				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<TextReader>()) == CreateDesignDocumentMap(docA, docB)
+					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == CreateDesignDocumentMap(docA, docB)
 					),
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docBWithoutRev, docCWithoutRev)),
-				new MockMessageHandler());
+				GetNoResultsMessageHandler());
 
-			Assert.True(engine.CheckIfChanged(new Uri("http://example.com")));
+			Assert.True(engine.CheckIfChanged(new Uri("http://example.com/db1")));
 		}
 
 		[Fact]
@@ -97,55 +95,55 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		{
 			var engine = new Engine(
 				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<TextReader>()) == CreateDesignDocumentMap(docA, docB, docC)
+					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == CreateDesignDocumentMap(docA, docB, docC)
 					),
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docB2WithoutRev, docCWithoutRev)),
-				new MockMessageHandler());
+				GetNoResultsMessageHandler());
 
-			Assert.True(engine.CheckIfChanged(new Uri("http://example.com")));
+			Assert.True(engine.CheckIfChanged(new Uri("http://example.com/db1")));
 		}
 
 		[Fact]
 		public void ShouldPushNewDocumensWithoutRevisionsWithPut()
 		{
-			var mockHandler = new MockMessageHandler();
+			var mockHandler = GetNoResultsMessageHandler();
 			
 			var engine = new Engine(
 				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<TextReader>()) == new Dictionary<string, DesignDocument>(0)
+					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == new Dictionary<string, DesignDocument>(0)
 				),
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev)),
 				mockHandler
 			);
 
-			engine.PushIfChanged(new Uri("http://example.com"));
+			engine.PushIfChanged(new Uri("http://example.com/db1"));
 
-			Assert.Equal("http://example.com/_design/doc1", mockHandler.Request.RequestUri.ToString());
-			Assert.Equal("PUT", mockHandler.Request.Method.ToString());
-			Assert.Equal(docAWithoutRev.ToString(), mockHandler.RequestBody, new JTokenStringCompairer());
+			Assert.Equal("http://example.com/db1/_bulk_docs", mockHandler.Request.RequestUri.ToString());
+			Assert.Equal("POST", mockHandler.Request.Method.ToString());
+			Assert.Equal("{\"docs\":[" + docAWithoutRev + "]}", mockHandler.RequestBody, new JTokenStringCompairer());
 		}
-		
+
 		[Fact]
 		public void ShouldPushUpdatedDocumensWithDbDocumentRevisionWithPut()
 		{
-			var mockHandler = new MockMessageHandler();
+			var mockHandler = GetNoResultsMessageHandler();
 			
 			var engine = new Engine(
 				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<TextReader>()) == CreateDesignDocumentMap(docB)
+					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == CreateDesignDocumentMap(docB)
 				),
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docB2WithoutRev)),
 				mockHandler
 			);
 
-			engine.PushIfChanged(new Uri("http://example.com"));
+			engine.PushIfChanged(new Uri("http://example.com/db1"));
 
-			Assert.Equal("http://example.com/_design/doc2", mockHandler.Request.RequestUri.ToString());
-			Assert.Equal("PUT", mockHandler.Request.Method.ToString());
+			Assert.Equal("http://example.com/db1/_bulk_docs", mockHandler.Request.RequestUri.ToString());
+			Assert.Equal("POST", mockHandler.Request.Method.ToString());
 			
 			var expectedDoc = (JObject)docB2WithoutRev.DeepClone();
 			expectedDoc["_rev"] = docB["_rev"];
-			Assert.Equal(expectedDoc.ToString(), mockHandler.RequestBody, new JTokenStringCompairer());
+			Assert.Equal("{\"docs\":[" + expectedDoc + "]}", mockHandler.RequestBody, new JTokenStringCompairer());
 		}
 
 		private static Dictionary<string, DesignDocument> CreateDesignDocumentMap(params JObject[] objects)
@@ -163,6 +161,27 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 					map.Add(id, new DesignDocument(jObject, id));
 			}
 			return map;
+		}
+
+		static MockMessageHandler GetNoResultsMessageHandler()
+		{
+			return new MockMessageHandler(ProcessRequest);
+		}
+
+		static string GetResultText(HttpRequestMessage request)
+		{
+			if (request.RequestUri.ToString().Contains("_all_docs")) return "{\"rows\":[]";
+			if (request.RequestUri.ToString().Contains("_bulk_docs")) return "[]";
+			
+			return "{\"ok\":true}";
+		}
+
+		static HttpResponseMessage ProcessRequest(HttpRequestMessage request)
+		{
+			var resultText = GetResultText(request);
+			return new HttpResponseMessage(HttpStatusCode.OK) {
+				Content = new StringContent(resultText, Encoding.UTF8, "application/json")
+			};
 		}
 	}
 }
