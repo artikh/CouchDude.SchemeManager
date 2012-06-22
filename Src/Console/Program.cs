@@ -17,11 +17,11 @@
 #endregion
 
 using System;
+using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using CommandLine;
-using CommandLine.Text;
 using Common.Logging;
+using Common.Logging.Simple;
 
 #pragma warning disable 0649
 
@@ -31,67 +31,9 @@ namespace CouchDude.SchemeManager.Console
 	{
 		private static readonly ILog Log = LogManager.GetCurrentClassLogger();
 
-		private static HeadingInfo headingInfo;
-		private static HeadingInfo HeadingInfo
-		{
-			get
-			{
-				if (headingInfo == null)
-				{
-					var currentAssemblyName = Assembly.GetExecutingAssembly().GetName();
-					headingInfo = new HeadingInfo(
-						currentAssemblyName.Name, 
-						string.Format("{0}.{1}", currentAssemblyName.Version.Major, currentAssemblyName.Version.Minor));
-				}
-				return headingInfo;
-			}
-		}
-
 		private const int OkReturnCode = 0;
 		private const int IncorrectOptionsReturnCode = 1;
 		private const int UnknownErrorReturnCode = 2;
-		private const string PasswordEnvVar = "COUCH_DUDE_PASSWORD";
-
-		public enum CommandType
-		{
-			Help = 0,
-			Generate,
-			Check,
-			Push
-		}
-
-		public sealed class Options
-		{
-			public Options() { 
-				Command = CommandType.Help;
-				BaseDirectory = string.Empty;
-			}
-
-			[Option("c", "command", Required = true, HelpText = "help|generate|check|push")]
-			public CommandType Command { get; set; }
-
-			[Option("a", "address", HelpText = "Database URL")]
-			public string DatabaseUrl { get; set; }
-
-			[Option("v", "verbose", HelpText = "Log diagnostics to console window")]
-			public bool Verbose { get; set; }
-
-			[Option("d", "directory", HelpText = "Base directory for document generation")]
-			public string BaseDirectory { get; set; }
-			
-			[HelpOption(HelpText = "Dispaly this help screen")]
-			public string GetUsage()
-			{
-				var help = new HelpText(HeadingInfo) {
-					AdditionalNewLineAfterOption = true
-				};
-				var execName = Assembly.GetExecutingAssembly().GetName().Name + ".exe";
-				help.AddPreOptionsLine(string.Format("Usage: {0} check -a http://admin:passw0rd@example.com:5984/yourdb [-d .\\designDocuments]", execName));
-				help.AddPreOptionsLine(PasswordEnvVar + " enviroment option used as database password if set.");
-				help.AddOptions(this);
-				return help;
-			}
-		}
 
 		static int Main(string[] args)
 		{
@@ -103,7 +45,7 @@ namespace CouchDude.SchemeManager.Console
 				return IncorrectOptionsReturnCode;
 			}
 
-			ChangeLoggingLevel(options.Verbose ? "INFO" : "WARN");
+			LogManager.Adapter = new ConsoleOutLoggerFactoryAdapter(options.Verbose ? LogLevel.Trace: LogLevel.Warn, false, true, true, null);
 
 			var directoryPath = !string.IsNullOrWhiteSpace(options.BaseDirectory)? options.BaseDirectory: Environment.CurrentDirectory;
 
@@ -114,7 +56,6 @@ namespace CouchDude.SchemeManager.Console
 				return IncorrectOptionsReturnCode;
 			}
 
-			var password = Environment.GetEnvironmentVariable(PasswordEnvVar);
 			var url = new Lazy<Uri>(() => ParseDatabaseUrl(options));
 
 			if (options.Command == CommandType.Help)
@@ -122,7 +63,7 @@ namespace CouchDude.SchemeManager.Console
 			else
 				try 
 				{
-					ExecuteCommand(options.Command, baseDirectory, url, password);
+					ExecuteCommand(options.Command, baseDirectory, url, options.UserName, options.Password);
 				}
 				catch (Exception e)
 				{
@@ -133,27 +74,7 @@ namespace CouchDude.SchemeManager.Console
 			return OkReturnCode;
 		}
 
-		private static void ChangeLoggingLevel(string level)
-		{
-			var repositories= log4net.LogManager.GetAllRepositories();
-
-			//Configure all loggers to be at the debug level.
-			foreach (var repository in repositories)
-			{
-				repository.Threshold = repository.LevelMap[level];
-					var hier = (log4net.Repository.Hierarchy.Hierarchy)repository;
-					var loggers=hier.GetCurrentLoggers();
-				foreach (var logger in loggers)
-					((log4net.Repository.Hierarchy.Logger) logger).Level = hier.LevelMap[level];
-			}
-
-			//Configure the root logger.
-			var h = (log4net.Repository.Hierarchy.Hierarchy)log4net.LogManager.GetRepository();
-			var rootLogger = h.Root;
-			rootLogger.Level = h.LevelMap[level];
-		}
-
-		private static void ExecuteCommand(CommandType command, DirectoryInfo baseDirectory, Lazy<Uri> url, string password) 
+		private static void ExecuteCommand(CommandType command, DirectoryInfo baseDirectory, Lazy<Uri> url, string userName, string password) 
 		{
 			var engine = Engine.CreateStandard(baseDirectory);
 			switch (command)
@@ -170,11 +91,11 @@ namespace CouchDude.SchemeManager.Console
 					break;
 				case CommandType.Check:
 					var haveChanged =
-						engine.CheckIfChanged(url.Value, password);
+						engine.CheckIfChanged(url.Value, userName, password);
 					System.Console.WriteLine(haveChanged? "Changed": "Have not changed");
 					break;
 				case CommandType.Push:
-					engine.PushIfChanged(url.Value, password);
+					engine.PushIfChanged(url.Value, userName, password);
 					break;
 				default:
 					throw new ArgumentOutOfRangeException();

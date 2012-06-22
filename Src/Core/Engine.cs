@@ -22,6 +22,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Threading.Tasks;
 using Common.Logging;
 using Newtonsoft.Json;
@@ -72,18 +74,15 @@ namespace CouchDude.SchemeManager
 
 		/// <summary>Checks if database design document set have changed comparing with
 		/// one generated from file system tree.</summary>
-		public bool CheckIfChanged(Uri databaseUri, string password = null)
+		public bool CheckIfChanged(Uri databaseUri, string userName = null, string password = null)
 		{
 			if (databaseUri == null) throw new ArgumentNullException("databaseUri");
 			if (!databaseUri.IsAbsoluteUri)
 				throw new ArgumentException("databaseUri should be absolute", "databaseUri");
 			if (!databaseUri.Scheme.StartsWith("http"))
 				throw new ArgumentException("databaseUri should be http or https", "databaseUri");
-			
 
-			FillPasswordIn(ref databaseUri, password);
-
-			var docsFromDatabase = GetDesignDocumentsFromDatabase(databaseUri);
+			var docsFromDatabase = GetDesignDocumentsFromDatabase(databaseUri, userName, password);
 			var docsFromFileSystem = GetDesignDocumentsFromFileSystem();
 
 			return GetChangedDocuments(docsFromFileSystem, docsFromDatabase).Any();
@@ -91,18 +90,15 @@ namespace CouchDude.SchemeManager
 
 		/// <summary>Updates database design document set with one generated from file system
 		/// tree.</summary>
-		public void PushIfChanged(Uri databaseUri, string password = null)
+		public void PushIfChanged(Uri databaseUri, string userName = null, string password = null)
 		{			
 			if(databaseUri == null) throw new ArgumentNullException("databaseUri");
 			if(!databaseUri.IsAbsoluteUri) 
 				throw new ArgumentException("databaseUri should be absolute", "databaseUri");
 			if(!databaseUri.Scheme.StartsWith("http")) 
 				throw new ArgumentException("databaseUri should be http or https", "databaseUri");
-			
 
-			FillPasswordIn(ref databaseUri, password);
-
-			var docsFromDatabase = GetDesignDocumentsFromDatabase(databaseUri);
+			var docsFromDatabase = GetDesignDocumentsFromDatabase(databaseUri, userName, password);
 			var docsFromFileSystem = GetDesignDocumentsFromFileSystem();
 			var changedDocs = GetChangedDocuments(docsFromFileSystem, docsFromDatabase);
 			Log.InfoFormat("{0} design documents will be pushed to database.", changedDocs.Count);
@@ -120,33 +116,40 @@ namespace CouchDude.SchemeManager
 				var request = new HttpRequestMessage(HttpMethod.Put, documentUri) {
 					Content = new StringContent(changedDoc.Definition.ToString(Formatting.None))
 				};
-				var response = SendAsync(request).Result;
+				var response = SendAsync(request, userName, password).Result;
 				response.EnsureSuccessStatusCode();
 			}
 		}
 
 		/// <summary>Удаляет базу данных и создает снова.</summary>
-		public void Truncate(Uri databaseUri, string password = null)
+		public void Truncate(Uri databaseUri, string userName = null, string password = null)
 		{
 			if (databaseUri == null) throw new ArgumentNullException("databaseUri");
 			if (!databaseUri.IsAbsoluteUri)
 				throw new ArgumentException("databaseUri should be absolute", "databaseUri");
 			if (!databaseUri.Scheme.StartsWith("http"))
 				throw new ArgumentException("databaseUri should be http or https", "databaseUri");
-			
-
-			FillPasswordIn(ref databaseUri, password);
-
-			//var docsFromDatabase = GetDesignDocumentsFromDatabase(databaseUri);
-			//var docsFromFileSystem = GetDesignDocumentsFromFileSystem();
-			//var changedDocs = GetChangedDocuments(docsFromFileSystem, docsFromDatabase);
-			//Log.InfoFormat("{0} design documents will be pushed to database.", changedDocs.Count);
 
 			Task.WaitAll(
-				SendAsync(new HttpRequestMessage(HttpMethod.Delete, databaseUri)),
-				SendAsync(new HttpRequestMessage(HttpMethod.Put, databaseUri))
+				SendAsync(new HttpRequestMessage(HttpMethod.Delete, databaseUri), userName, password),
+				SendAsync(new HttpRequestMessage(HttpMethod.Put, databaseUri), userName, password)
 			);
 		}
+
+
+		Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, string userName, string password)
+		{
+			if(userName != null && password != null)
+			{
+				var credentialsString = string.Concat(userName, ":", password);
+				var credentialsBytes = Encoding.UTF8.GetBytes(credentialsString);
+				var base64String = Convert.ToBase64String(credentialsBytes);
+				request.Headers.Authorization = new AuthenticationHeaderValue("Basic", base64String);
+			}
+
+			return base.SendAsync(request);
+		}
+
 
 		/// <summary>Generates design documents from directory content.</summary>
 		public IEnumerable<string> Generate()
@@ -154,13 +157,7 @@ namespace CouchDude.SchemeManager
 			return GetDesignDocumentsFromFileSystem().Values
 				.Select(dd => dd.Definition.ToString(Formatting.Indented));
 		}
-
-		private static void FillPasswordIn(ref Uri databaseUri, string password) 
-		{
-			if (password != null)
-				databaseUri = new UriBuilder(databaseUri) { Password = password }.Uri;
-		}
-
+		
 		private static IList<DesignDocument> GetChangedDocuments(
 			IDictionary<string, DesignDocument> docsFromFs, 
 			IDictionary<string, DesignDocument> docsFromDb)
@@ -193,13 +190,13 @@ namespace CouchDude.SchemeManager
 			return changedDocuments;
 		}
 
-		private IDictionary<string, DesignDocument> GetDesignDocumentsFromDatabase(Uri databaseUri) 
+		private IDictionary<string, DesignDocument> GetDesignDocumentsFromDatabase(Uri databaseUri, string userName, string password) 
 		{
 			Log.Info("Downloading design documents from database...");
 			var request = new HttpRequestMessage(
 				HttpMethod.Get, 
 				databaseUri + @"_all_docs?startkey=""_design/""&endkey=""_design0""&include_docs=true");
-			var response = SendAsync(request).Result;
+			var response = SendAsync(request, userName, password).Result;
 			using(var stream = response.Content.ReadAsStreamAsync().Result)
 			using (var reader = new StreamReader(stream))
 			{
