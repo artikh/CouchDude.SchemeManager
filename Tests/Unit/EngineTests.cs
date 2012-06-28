@@ -106,47 +106,74 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		[Fact]
 		public void ShouldPushNewDocumensWithoutRevisionsWithPut()
 		{
+			var expectedDoc = docAWithoutRev;
 			var mockHandler = GetNoResultsMessageHandler();
-			
+
+			var stage = 0;
+			var extractorMock = new Mock<IDesignDocumentExtractor>();
+			extractorMock
+				.Setup(e => e.Extract(It.IsAny<IEnumerable<JObject>>()))
+				.Returns(
+					(IEnumerable<JObject> _) =>
+					{
+						switch (stage++)
+						{
+							case 0: return new Dictionary<string, DesignDocument>(0);
+							case 1: return CreateDesignDocumentMap(expectedDoc);
+							default: throw new Exception();
+						}
+					});
 			var engine = new Engine(
-				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == new Dictionary<string, DesignDocument>(0)
-				),
-				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev)),
+				extractorMock.Object,
+				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(expectedDoc)),
 				mockHandler
 			);
 
 			engine.PushIfChanged(new Uri("http://example.com/db1"));
 
-			Assert.Equal("http://example.com/db1/_bulk_docs", mockHandler.Request.RequestUri.ToString());
-			Assert.Equal("POST", mockHandler.Request.Method.ToString());
-			Assert.Equal("{\"docs\":[" + docAWithoutRev + "]}", mockHandler.RequestBody, new JTokenStringCompairer());
+			Assert.Equal("http://example.com/db1/_bulk_docs", mockHandler.Requests[1].RequestUri.ToString());
+			Assert.Equal("POST", mockHandler.Requests[1].Method.ToString());
+			Assert.Equal("{\"docs\":[" + expectedDoc + "]}", mockHandler.RequestBodies[1], new JTokenStringCompairer());
 		}
+
 
 		[Fact]
 		public void ShouldPushUpdatedDocumensWithDbDocumentRevisionWithPut()
 		{
-			var mockHandler = GetNoResultsMessageHandler();
-			
+			var expectedDoc = (JObject)docB2WithoutRev.DeepClone();
+
+			int stage = 0;
+
+			var extractorMock = new Mock<IDesignDocumentExtractor>();
+			extractorMock
+				.Setup(e => e.Extract(It.IsAny<IEnumerable<JObject>>()))
+				.Returns(
+					(IEnumerable<JObject> _) => {
+						switch (stage++)
+						{
+							case 0: return CreateDesignDocumentMap(docB);
+							case 1: return CreateDesignDocumentMap(expectedDoc);
+							default: throw new Exception();
+						}
+					});
+
+			var handler = GetNoResultsMessageHandler();
 			var engine = new Engine(
-				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == CreateDesignDocumentMap(docB)
-				),
+				extractorMock.Object, 
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docB2WithoutRev)),
-				mockHandler
+				handler
 			);
 
 			engine.PushIfChanged(new Uri("http://example.com/db1"));
 
-			Assert.Equal("http://example.com/db1/_bulk_docs", mockHandler.Request.RequestUri.ToString());
-			Assert.Equal("POST", mockHandler.Request.Method.ToString());
+			Assert.Equal("http://example.com/db1/_bulk_docs", handler.Requests[1].RequestUri.ToString());
+			Assert.Equal("POST", handler.Requests[1].Method.ToString());
 			
-			var expectedDoc = (JObject)docB2WithoutRev.DeepClone();
 			expectedDoc["_rev"] = docB["_rev"];
-			Assert.Equal("{\"docs\":[" + expectedDoc + "]}", mockHandler.RequestBody, new JTokenStringCompairer());
+			Assert.Equal("{\"docs\":[" + expectedDoc + "]}", handler.RequestBodies[1], new JTokenStringCompairer());
 		}
 
-		private static Dictionary<string, DesignDocument> CreateDesignDocumentMap(params JObject[] objects)
+		private static IDictionary<string, DesignDocument> CreateDesignDocumentMap(params JObject[] objects)
 		{
 			var map = new Dictionary<string, DesignDocument>(objects.Length);
 			foreach (var jObject in objects)
@@ -178,7 +205,11 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 
 		static HttpResponseMessage ProcessRequest(HttpRequestMessage request)
 		{
-			var resultText = GetResultText(request);
+			return ConstructResponseManager(GetResultText(request));
+		}
+
+		static HttpResponseMessage ConstructResponseManager(string resultText)
+		{
 			return new HttpResponseMessage(HttpStatusCode.OK) {
 				Content = new StringContent(resultText, Encoding.UTF8, "application/json")
 			};

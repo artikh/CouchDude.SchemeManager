@@ -17,6 +17,7 @@
 #endregion
 
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -26,9 +27,14 @@ namespace CouchDude.SchemeManager.Tests
 {
 	internal class MockMessageHandler : HttpMessageHandler
 	{
+		readonly Stack<HttpRequestMessage> requests = new Stack<HttpRequestMessage>();
+		readonly Stack<string> requestBodies = new Stack<string>();
+
 		public Func<HttpRequestMessage, HttpResponseMessage> ProcessRequest { get; private set; }
-		public string RequestBody { get; private set; }
-		public HttpRequestMessage Request { get; private set; }
+		public HttpRequestMessage[] Requests { get { return requests.ToArray(); } }
+		public string[] RequestBodies { get { return requestBodies.ToArray(); } }
+		public HttpRequestMessage Request { get{ return requests.Peek(); } }
+		public string RequestBody { get{ return requestBodies.Peek(); } }
 
 		public MockMessageHandler(string responseText) : this(HttpStatusCode.OK, responseText) { }
 
@@ -46,8 +52,8 @@ namespace CouchDude.SchemeManager.Tests
 		protected override Task<HttpResponseMessage> SendAsync(
 			HttpRequestMessage request, System.Threading.CancellationToken cancellationToken)
 		{
-			Request = request;
-			RequestBody = Request.Content != null? Request.Content.ReadAsStringAsync().Result: null;
+			requests.Push(request);
+			requestBodies.Push(Request.Content != null? Request.Content.ReadAsStringAsync().Result: null);
 			return Task.Factory.StartNew(() => ProcessRequest(request));
 		}
 	}
