@@ -16,50 +16,19 @@
 */
 #endregion
 
-using System;
-
-using Newtonsoft.Json.Linq;
+using System.Json;
+using System.Linq;
 
 namespace CouchDude.SchemeManager
 {
 	/// <summary>Design document descriptor.</summary>
-	public class DesignDocument: IEquatable<DesignDocument>
+	public class DesignDocument: Document
 	{
 		/// <summary>Design ID prefix.</summary>
 		public const string IdPrefix = "_design/";
-
-		/// <summary>Document ID standard property name.</summary>
-		public const string IdPropertyName = "_id";
 		
-		/// <summary>Document ID standard property name.</summary>
-		public const string RevisionPropertyName = "_rev";
-
-		/// <summary>Document reserved property names.</summary>
-		public static readonly string[] ReservedPropertyNames = 
-			new[] { IdPropertyName, RevisionPropertyName };
-
 		/// <constructor />
-		public DesignDocument(JObject defenition, string id, string revision = null)
-		{
-			if(string.IsNullOrWhiteSpace(id)) throw new ArgumentNullException("id");
-			if(!id.StartsWith(IdPrefix)) 
-				throw new ArgumentException("Design document IDs should begin with '_design/'", "id");
-			if(defenition == null) throw new ArgumentNullException("defenition");
-			
-
-			Id = id;
-			Revision = revision;
-			Definition = defenition;
-		}
-
-		/// <summary>Document Id (part after "_design/").</summary>
-		public string Id { get; private set; }
-
-		/// <summary>Design document revision.</summary>
-		public string Revision { get; private set; }
-
-		/// <summary>Document body.</summary>
-		public JObject Definition { get; private set; }
+		public DesignDocument(JsonObject documentJson): base(documentJson) { }
 
 		/// <summary>Determines if documents apears new.</summary>
 		public bool IsNew { get { return Revision == null; } }
@@ -67,19 +36,15 @@ namespace CouchDude.SchemeManager
 		/// <inheritdoc/>
 		public bool Equals(DesignDocument other)
 		{
-			if (ReferenceEquals(null, other)) return false;
-			if (ReferenceEquals(this, other)) return true;
-
-			return new JTokenEqualityComparer().Equals(RemoveRev(other.Definition), RemoveRev(Definition));
+			return GetWithoutRev(this).Equals(GetWithoutRev(other));
 		}
 
-		private static JToken RemoveRev(JObject defenition)
+		private static Document GetWithoutRev(Document document)
 		{
-			if (defenition.Property(RevisionPropertyName) == null)
-				return defenition;
-			var obj = (JObject)defenition.DeepClone();
-			obj.Remove(RevisionPropertyName);
-			return obj;
+			if (ReferenceEquals(document, null)) return null;
+			return document.RawJsonObject.ContainsKey(RevisionPropertyName)
+				? new Document(new JsonObject(document.RawJsonObject.Where(kvp => kvp.Key != RevisionPropertyName)))
+				: document;
 		}
 
 		/// <inheritdoc/>
@@ -94,7 +59,7 @@ namespace CouchDude.SchemeManager
 		/// <inheritdoc/>
 		public override int GetHashCode()
 		{
-			return RemoveRev(Definition).GetHashCode();
+			return base.GetHashCode();
 		}
 
 		/// <inheritdoc/>
@@ -110,17 +75,11 @@ namespace CouchDude.SchemeManager
 		}
 
 		/// <inheritdoc/>
-		public DesignDocument CopyWithRevision(string revision)
+		public DesignDocument CopyWithRevision(string newRevision)
 		{
-			var docWithRevision = (JObject)Definition.DeepClone();
-
-			if (docWithRevision[RevisionPropertyName] != null)
-				docWithRevision.Remove(RevisionPropertyName);
-
-			docWithRevision.Property(IdPropertyName).AddAfterSelf(
-				new JProperty(RevisionPropertyName, JToken.FromObject(revision))
-			);
-			return new DesignDocument(docWithRevision, Id, revision);
+			var jsonObject = new JsonObject(RawJsonObject);
+			jsonObject[RevisionPropertyName] = newRevision;
+			return new DesignDocument(jsonObject);
 		}
 	}
 }

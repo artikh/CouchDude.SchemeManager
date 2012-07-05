@@ -17,8 +17,7 @@
 #endregion
 
 using System.Collections.Generic;
-using System.IO;
-using Newtonsoft.Json.Linq;
+using System.Json;
 
 namespace CouchDude.SchemeManager
 {
@@ -26,6 +25,6 @@ namespace CouchDude.SchemeManager
 	public interface IDesignDocumentExtractor 
 	{
 		/// <summary>Extracts design documents.</summary>
-		IDictionary<string, DesignDocument> Extract(IEnumerable<JObject> rawDocuments);
+		IDictionary<string, DesignDocument> Extract(IEnumerable<JsonObject> rawDocuments);
 	}
 }

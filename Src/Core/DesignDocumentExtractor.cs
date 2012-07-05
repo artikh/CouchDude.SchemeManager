@@ -18,8 +18,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Json;
 using System.Linq;
-using Newtonsoft.Json.Linq;
 
 namespace CouchDude.SchemeManager
 {
@@ -27,40 +27,10 @@ namespace CouchDude.SchemeManager
 	public class DesignDocumentExtractor : IDesignDocumentExtractor
 	{
 		/// <summary>Extracts design documents.</summary>
-		public IDictionary<string, DesignDocument> Extract(IEnumerable<JObject> rawDocuments)
+		public IDictionary<string, DesignDocument> Extract(IEnumerable<JsonObject> rawDocuments)
 		{
 			if (rawDocuments == null) throw new ArgumentNullException("rawDocuments");
-
-			return rawDocuments.Select(GetDocument).ToDictionary(doc => doc.Id, doc => doc);
-		}
-
-		static DesignDocument GetDocument(JObject rowObject)
-		{
-			var keyProperty = rowObject["key"] as JValue;
-			if (keyProperty == null)
-				throw new ParseException("Document list row object should contain 'key' property.");
-
-			var id = keyProperty.Value<string>();
-			if (!id.StartsWith(DesignDocument.IdPrefix))
-				throw new ParseException(
-					"Document list row object's 'key' property should start with " + DesignDocument.IdPrefix + "'.");
-
-			var valueProperty = rowObject["value"] as JObject;
-			if (valueProperty == null)
-				throw new ParseException(
-					"Document list row object should contain 'value' property.");
-
-			var revProperty = valueProperty["rev"] as JValue;
-			if (revProperty == null)
-				throw new ParseException(
-					"Document list row's value property object should contain 'rev' property.");
-
-			var documentProperty = rowObject["doc"] as JObject;
-			if (documentProperty == null)
-				throw new ParseException(
-					"Document list row object should contain 'doc' property.");
-
-			return new DesignDocument(documentProperty, id, revProperty.Value<string>());
+			return rawDocuments.Select(jsonDoc => new DesignDocument(jsonDoc)).ToDictionary(doc => doc.Id, doc => doc);
 		}
 	}
 }

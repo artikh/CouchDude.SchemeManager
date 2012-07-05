@@ -17,31 +17,27 @@
 #endregion
 
 using System.Collections.Generic;
-using System.IO;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Json;
+using CouchDude.Utils;
 
 namespace CouchDude.SchemeManager.Tests
 {
-	public class JTokenStringCompairer: IEqualityComparer<string>
+	public class JsonStringCompairer: IEqualityComparer<string>
 	{
+		static readonly JsonObjectComparier Comparier = new JsonObjectComparier();
+
 		public bool Equals(string x, string y)
 		{
-			var xToken = Parse(x);
-			var yToken = Parse(y);
-			return JToken.DeepEquals(xToken, yToken);
+			var aValue = Parse(x);
+			var bValue = Parse(y);
+			return Comparier.Equals(aValue, bValue);
 		}
 
-		private static JToken Parse(string str)
-		{
-			using (var reader = new StringReader(str))
-			using (var jsonReader = new JsonTextReader(reader))
-				return JToken.ReadFrom(jsonReader);
-		}
+		private static JsonValue Parse(string str) { return JsonValue.Parse(str); }
 
 		public int GetHashCode(string obj)
 		{
-			return JObject.Parse(obj).GetHashCode();
+			return JsonValue.Parse(obj).GetHashCode();
 		}
 	}
 }

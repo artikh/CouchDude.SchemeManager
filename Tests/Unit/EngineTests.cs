@@ -18,38 +18,38 @@
 
 using System;
 using System.Collections.Generic;
+using System.Json;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
 using Moq;
-using Newtonsoft.Json.Linq;
 using Xunit;
 
-namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
+namespace CouchDude.SchemeManager.Tests.Unit
 {
 	public class EngineTests
 	{
-		private readonly JObject docA =
-			JObject.Parse(@"{ ""_id"": ""_design/doc1"", ""_rev"": ""1"", ""prop"": ""prop value of doc1"" }");
+		private readonly JsonObject docA =
+			JsonValue.Parse(@"{ ""_id"": ""_design/doc1"", ""_rev"": ""1"", ""prop"": ""prop value of doc1"" }") as JsonObject;
 
-		private readonly JObject docAWithoutRev =
-			JObject.Parse(@"{ ""_id"": ""_design/doc1"", ""prop"": ""prop value of doc1"" }");
+		private readonly JsonObject docAWithoutRev =
+			JsonValue.Parse(@"{ ""_id"": ""_design/doc1"", ""prop"": ""prop value of doc1"" }") as JsonObject;
 
-		private readonly JObject docB =
-			JObject.Parse(@"{ ""_id"": ""_design/doc2"", ""_rev"": ""1"", ""prop"": ""prop value of doc2"" }");
+		private readonly JsonObject docB =
+			JsonValue.Parse(@"{ ""_id"": ""_design/doc2"", ""_rev"": ""1"", ""prop"": ""prop value of doc2"" }") as JsonObject;
 
-		private readonly JObject docBWithoutRev =
-			JObject.Parse(@"{ ""_id"": ""_design/doc2"", ""prop"": ""prop value of doc2"" }");
+		private readonly JsonObject docBWithoutRev =
+			JsonValue.Parse(@"{ ""_id"": ""_design/doc2"", ""prop"": ""prop value of doc2"" }") as JsonObject;
 
-		private readonly JObject docB2WithoutRev =
-			JObject.Parse(@"{ ""_id"": ""_design/doc2"", ""_rev"": ""1"", ""prop"": ""prop value of doc2, version 2"" }");
+		private readonly JsonObject docB2WithoutRev =
+			JsonValue.Parse(@"{ ""_id"": ""_design/doc2"", ""_rev"": ""1"", ""prop"": ""prop value of doc2, version 2"" }") as JsonObject;
 
-		private readonly JObject docC =
-			JObject.Parse(@"{ ""_id"": ""_design/doc3"", ""_rev"": ""1"", ""prop"": ""prop value of doc3"" }");
+		private readonly JsonObject docC =
+			JsonValue.Parse(@"{ ""_id"": ""_design/doc3"", ""_rev"": ""1"", ""prop"": ""prop value of doc3"" }") as JsonObject;
 
-		private readonly JObject docCWithoutRev =
-			JObject.Parse(@"{ ""_id"": ""_design/doc3"", ""prop"": ""prop value of doc3"" }");
+		private readonly JsonObject docCWithoutRev =
+			JsonValue.Parse(@"{ ""_id"": ""_design/doc3"", ""prop"": ""prop value of doc3"" }") as JsonObject;
 
 		[Fact]
 		public void ShuldPassGenerateRequestThroughTo()
@@ -61,7 +61,7 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
       var generatedJsonStingDocs = engine.Generate().ToArray();
 
 			Assert.Equal(1, generatedJsonStingDocs.Length);
-			Assert.Equal(docA.ToString(), generatedJsonStingDocs[0], new JTokenStringCompairer());
+			Assert.Equal(docA.ToString(), generatedJsonStingDocs[0], new JsonStringCompairer());
 		}
 
 		[Fact]
@@ -69,7 +69,7 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		{
 			var engine = new Engine(
 				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == CreateDesignDocumentMap(docA, docB, docC)
+					e => e.Extract(It.IsAny<IEnumerable<JsonObject>>()) == CreateDesignDocumentMap(docA, docB, docC)
 				),
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docBWithoutRev, docCWithoutRev)),
 				GetNoResultsMessageHandler());
@@ -82,7 +82,7 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		{
 			var engine = new Engine(
 				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == CreateDesignDocumentMap(docA, docB)
+					e => e.Extract(It.IsAny<IEnumerable<JsonObject>>()) == CreateDesignDocumentMap(docA, docB)
 					),
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docBWithoutRev, docCWithoutRev)),
 				GetNoResultsMessageHandler());
@@ -95,7 +95,7 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		{
 			var engine = new Engine(
 				Mock.Of<IDesignDocumentExtractor>(
-					e => e.Extract(It.IsAny<IEnumerable<JObject>>()) == CreateDesignDocumentMap(docA, docB, docC)
+					e => e.Extract(It.IsAny<IEnumerable<JsonObject>>()) == CreateDesignDocumentMap(docA, docB, docC)
 					),
 				Mock.Of<IDesignDocumentAssembler>(a => a.Assemble() == CreateDesignDocumentMap(docAWithoutRev, docB2WithoutRev, docCWithoutRev)),
 				GetNoResultsMessageHandler());
@@ -112,9 +112,9 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 			var stage = 0;
 			var extractorMock = new Mock<IDesignDocumentExtractor>();
 			extractorMock
-				.Setup(e => e.Extract(It.IsAny<IEnumerable<JObject>>()))
+				.Setup(e => e.Extract(It.IsAny<IEnumerable<JsonObject>>()))
 				.Returns(
-					(IEnumerable<JObject> _) =>
+					(IEnumerable<JsonObject> _) =>
 					{
 						switch (stage++)
 						{
@@ -133,22 +133,22 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 
 			Assert.Equal("http://example.com/db1/_bulk_docs", mockHandler.Requests[1].RequestUri.ToString());
 			Assert.Equal("POST", mockHandler.Requests[1].Method.ToString());
-			Assert.Equal("{\"docs\":[" + expectedDoc + "]}", mockHandler.RequestBodies[1], new JTokenStringCompairer());
+			Assert.Equal("{\"docs\":[" + expectedDoc + "]}", mockHandler.RequestBodies[1], new JsonStringCompairer());
 		}
 
 
 		[Fact]
 		public void ShouldPushUpdatedDocumensWithDbDocumentRevisionWithPut()
 		{
-			var expectedDoc = (JObject)docB2WithoutRev.DeepClone();
+			var expectedDoc = new JsonObject(docB2WithoutRev);
 
 			int stage = 0;
 
 			var extractorMock = new Mock<IDesignDocumentExtractor>();
 			extractorMock
-				.Setup(e => e.Extract(It.IsAny<IEnumerable<JObject>>()))
+				.Setup(e => e.Extract(It.IsAny<IEnumerable<JsonObject>>()))
 				.Returns(
-					(IEnumerable<JObject> _) => {
+					(IEnumerable<JsonObject> _) => {
 						switch (stage++)
 						{
 							case 0: return CreateDesignDocumentMap(docB);
@@ -170,22 +170,21 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 			Assert.Equal("POST", handler.Requests[1].Method.ToString());
 			
 			expectedDoc["_rev"] = docB["_rev"];
-			Assert.Equal("{\"docs\":[" + expectedDoc + "]}", handler.RequestBodies[1], new JTokenStringCompairer());
+			Assert.Equal("{\"docs\":[" + expectedDoc + "]}", handler.RequestBodies[1], new JsonStringCompairer());
 		}
 
-		private static IDictionary<string, DesignDocument> CreateDesignDocumentMap(params JObject[] objects)
+		private static IDictionary<string, DesignDocument> CreateDesignDocumentMap(params JsonObject[] objects)
 		{
 			var map = new Dictionary<string, DesignDocument>(objects.Length);
-			foreach (var jObject in objects)
+			foreach (var jsonObject in objects)
 			{
-				var id = jObject["_id"].Value<string>();
-				if (jObject.Property("_rev") != null)
+				var id = (string)jsonObject["_id"];
+				if (jsonObject.ContainsKey("_rev"))
 				{
-					var rev = jObject["_rev"].Value<string>();
-					map.Add(id, new DesignDocument(jObject, id, rev));
+					map.Add(id, new DesignDocument(jsonObject));
 				}
 				else
-					map.Add(id, new DesignDocument(jObject, id));
+					map.Add(id, new DesignDocument(jsonObject));
 			}
 			return map;
 		}

@@ -18,6 +18,7 @@
 
 using System.Collections.Generic;
 using System.IO;
+using System.Json;
 using System.Linq;
 using Common.Logging;
 using Newtonsoft.Json.Linq;
@@ -27,9 +28,11 @@ namespace CouchDude.SchemeManager
 	/// <summary>Assembles design documents from file system structure</summary>
 	public class DesignDocumentAssembler: IDesignDocumentAssembler
 	{
-		private static readonly ILog Log = LogManager.GetCurrentClassLogger();
+		const string IdPropertyName = "_id";
+		static readonly string[] ReservedPropertyNames = new[] {"_id", "_rev", "type", "_attachments"};
+		static readonly ILog Log = LogManager.GetCurrentClassLogger();
 
-		private readonly IDirectory directory;
+		readonly IDirectory directory;
 
 		/// <constructor />
 		public DesignDocumentAssembler(IDirectory directory)
@@ -48,23 +51,23 @@ namespace CouchDude.SchemeManager
 			foreach (var subDirectory in directory.EnumerateDirectories())
 			{
 				var id = GetId(subDirectory);
-				var designDocument = new JObject(new JProperty(DesignDocument.IdPropertyName, id));
+				var designDocument = new JsonObject(new KeyValuePair<string, JsonValue>(IdPropertyName, id));
 				MapPropertiesRecursive(designDocument, subDirectory);
-				yield return new DesignDocument(designDocument, id);
+				yield return new DesignDocument(designDocument);
 			}
 		}
 
-		private static void MapPropertiesRecursive(JObject jObject, IDirectory directory)
+		private static void MapPropertiesRecursive(JsonObject jObject, IDirectory directory)
 		{
 			foreach (var file in directory.EnumerateFiles())
 			{
 				var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
-				if (fileNameWithoutExtension == null || fileNameWithoutExtension == DesignDocument.IdPropertyName)
+				if (fileNameWithoutExtension == null || fileNameWithoutExtension == IdPropertyName)
 					continue;
-				if (DesignDocument.ReservedPropertyNames.Contains(fileNameWithoutExtension))
+				if (ReservedPropertyNames.Contains(fileNameWithoutExtension))
 					throw new DesignDocumentAssemblerException("File name {0} is reserved.", file);
 
-				if (jObject.Property(fileNameWithoutExtension) != null)
+				if (jObject.ContainsKey(fileNameWithoutExtension))
 					throw CreateClashingFilesException(directory, fileNameWithoutExtension);
 				jObject[fileNameWithoutExtension] = ReadFile(file);
 			}
@@ -73,13 +76,12 @@ namespace CouchDude.SchemeManager
 			{
 				var subDirectoryName = subDirectory.Name;
 
-				if (DesignDocument.ReservedPropertyNames.Contains(subDirectoryName))
-					throw new DesignDocumentAssemblerException(
-						"Directory name {0} is reserved.", subDirectoryName);
-				if (jObject.Property(subDirectoryName) != null)
+				if (ReservedPropertyNames.Contains(subDirectoryName))
+					throw new DesignDocumentAssemblerException("Directory name {0} is reserved.", subDirectoryName);
+				if (jObject.ContainsKey(subDirectoryName))
 					throw CreateClashingFilesException(directory, subDirectoryName);
 
-				var subObject = new JObject();
+				var subObject = new JsonObject();
 				jObject[subDirectoryName] = subObject;
 				MapPropertiesRecursive(subObject, subDirectory);
 			}
@@ -143,7 +145,7 @@ namespace CouchDude.SchemeManager
 		{
 			return subDirectory
 				.EnumerateFiles()
-				.FirstOrDefault(n => Path.GetFileNameWithoutExtension(n.Name) == DesignDocument.IdPropertyName);
+				.FirstOrDefault(n => Path.GetFileNameWithoutExtension(n.Name) == IdPropertyName);
 		}
 	}
 }

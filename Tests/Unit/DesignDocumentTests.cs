@@ -16,8 +16,8 @@
 */
 #endregion
 
-using CouchDude.SchemeManager;
-using Newtonsoft.Json.Linq;
+using System.Json;
+using CouchDude.Utils;
 using Xunit;
 
 namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
@@ -27,24 +27,24 @@ namespace CouchDude.SchemeManager.Tests.Unit.SchemeManager
 		[Fact]
 		public void ShouldCopyWithRevisionProperly()
 		{
-			var json = JObject.Parse(@"{
+			var json = JsonValue.Parse(@"{
 				""_id"": ""_design/bin_doc1"",
 				""some_property1"": ""test content""
-			}");
+			}") as JsonObject;
 
-			var document = new DesignDocument(json, "_design/bin_doc1", null);
+			var document = new DesignDocument(json);
 			var copiedDocument = document.CopyWithRevision("3-ee7084f94345720bf9fdcd8f087e5518");
 
 			Assert.Equal("_design/bin_doc1", copiedDocument.Id);
 			Assert.Equal("3-ee7084f94345720bf9fdcd8f087e5518", copiedDocument.Revision);
 			Assert.Equal(
-				JObject.Parse(@"{
+				JsonValue.Parse(@"{
 					""_id"": ""_design/bin_doc1"",
-					""_rev"": ""3-ee7084f94345720bf9fdcd8f087e5518"",
-					""some_property1"": ""test content""
+					""some_property1"": ""test content"",
+					""_rev"": ""3-ee7084f94345720bf9fdcd8f087e5518""
 				}"),
-				copiedDocument.Definition,
-				new JTokenEqualityComparer()
+				copiedDocument.RawJsonObject,
+				new JsonObjectComparier()
 			);
 		}
 	}

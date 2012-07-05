@@ -122,11 +122,10 @@ namespace CouchDude.SchemeManager
 				foreach (var changedDoc in changedDocs)
 				{
 					Log.TraceFormat("Pushing document {0} to the database.", changedDoc.Id);
-					var document = new Document(changedDoc.Definition.ToString());
 					if (changedDoc.IsNew)
-						b.Create(document);
+						b.Create(changedDoc);
 					else
-						b.Update(document);
+						b.Update(changedDoc);
 				}
 			});
 		}
@@ -190,8 +189,7 @@ namespace CouchDude.SchemeManager
 		/// <summary>Generates design documents from directory content.</summary>
 		public IEnumerable<string> Generate()
 		{
-			return GetDesignDocumentsFromFileSystem().Values
-				.Select(dd => dd.Definition.ToString(Formatting.Indented));
+			return GetDesignDocumentsFromFileSystem().Values.Select(dd => dd.ToString());
 		}
 		
 		private static IList<DesignDocument> GetChangedDocuments(
@@ -206,13 +204,13 @@ namespace CouchDude.SchemeManager
 				if (!docsFromDb.TryGetValue(docFromFs.Id, out docFromDb))
 				{
 					Log.InfoFormat("Design document {0} is new", docFromFs.Id);
-					Log.Trace(docFromFs.Definition);
+					Log.Trace(docFromFs);
 					changedDocuments.Add(docFromFs);
 				}
 				else if (docFromDb != docFromFs)
 				{
 					Log.InfoFormat("Design document {0} have changed", docFromFs.Id);
-					Log.Trace(docFromFs.Definition);
+					Log.Trace(docFromFs);
 					changedDocuments.Add(docFromFs.CopyWithRevision(docFromDb.Revision));
 				}
 			}
@@ -238,7 +236,7 @@ namespace CouchDude.SchemeManager
 				StartKey = "_design/",
 				EndKey = "_design0",
 				IncludeDocs = true
-			}).Result.Rows.Select(r => JObject.Parse(r.Document.ToString()));
+			}).Result.Rows.Select(r => r.Document.RawJsonObject);
 			
 			var designDocumentsFromDatabase = designDocumentExtractor.Extract(result);
 			Log.InfoFormat("{0} design documens downloaded from database.", designDocumentsFromDatabase.Count);

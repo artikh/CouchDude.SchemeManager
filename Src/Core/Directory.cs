@@ -50,10 +50,12 @@ namespace CouchDude.SchemeManager
 			return directoryInfo.EnumerateFiles().Select(fi => new File(fi));
 		}
 
+		static readonly string[] IgnoredDirs = new[] {"obj", "bin"};
+
 		/// <inheritdoc/>
 		public IEnumerable<IDirectory> EnumerateDirectories()
 		{
-			return directoryInfo.EnumerateDirectories().Select(di => new Directory(di));
+			return directoryInfo.EnumerateDirectories().Where(di => !IgnoredDirs.Contains(di.Name)).Select(di => new Directory(di));
 		}
 	}
 }

@@ -17,10 +17,11 @@
 #endregion
 
 using System.IO;
+using System.Json;
 using System.Linq;
 using System.Text;
+using CouchDude.Utils;
 using Moq;
-using Newtonsoft.Json.Linq;
 using Xunit;
 using Xunit.Extensions;
 
@@ -61,16 +62,16 @@ namespace CouchDude.SchemeManager.Tests.Unit
 			Assert.Equal("_design/first_doc", designDocumentA.Id);
 			Assert.Null(designDocumentA.Revision);
 			Assert.Equal(
-				JObject.Parse(@"{ ""_id"": ""_design/first_doc"" }"),
-				designDocumentA.Definition,
-				new JTokenEqualityComparer());
+				JsonValue.Parse(@"{ ""_id"": ""_design/first_doc"" }"),
+				designDocumentA.RawJsonObject,
+				new JsonObjectComparier());
 
 			Assert.Equal("_design/second_doc", designDocumentB.Id); 
 			Assert.Null(designDocumentB.Revision);
 			Assert.Equal(
-				JObject.Parse(@"{ ""_id"": ""_design/second_doc"" }"),
-				designDocumentB.Definition,
-				new JTokenEqualityComparer());
+				JsonValue.Parse(@"{ ""_id"": ""_design/second_doc"" }"),
+				designDocumentB.RawJsonObject,
+				new JsonObjectComparier());
 		}
 
 		[Fact]
@@ -96,9 +97,9 @@ namespace CouchDude.SchemeManager.Tests.Unit
 			Assert.Equal("_design/some special ID", generatedDoc.Id);
 			Assert.Null(generatedDoc.Revision);
 			Assert.Equal(
-				JObject.Parse(@"{ ""_id"": ""_design/some special ID"" }"),
-				generatedDoc.Definition,
-				new JTokenEqualityComparer());
+				JsonValue.Parse(@"{ ""_id"": ""_design/some special ID"" }"),
+				generatedDoc.RawJsonObject,
+				new JsonObjectComparier());
 		}
 
 		[Fact]
@@ -126,9 +127,9 @@ namespace CouchDude.SchemeManager.Tests.Unit
 			Assert.Equal("_design/doc1", generatedDoc.Id);
 			Assert.Null(generatedDoc.Revision);
 			Assert.Equal(
-				JObject.Parse(@"{ ""_id"": ""_design/doc1"", ""prop1"": ""prop1 value"", ""prop2"": ""prop2 value"" }"),
-				generatedDoc.Definition,
-				new JTokenEqualityComparer());
+				JsonValue.Parse(@"{ ""_id"": ""_design/doc1"", ""prop1"": ""prop1 value"", ""prop2"": ""prop2 value"" }"),
+				generatedDoc.RawJsonObject,
+				new JsonObjectComparier());
 		}
 
 		[Fact]
@@ -256,7 +257,7 @@ namespace CouchDude.SchemeManager.Tests.Unit
 			Assert.Null(generatedDoc.Revision);
 			
 			Assert.Equal(
-				JObject.Parse(@"{ 
+				JsonObject.Parse(@"{ 
 					""_id"": ""_design/doc1"", 
 					""interObj1"": {
 						""interObj2"": {
@@ -267,8 +268,8 @@ namespace CouchDude.SchemeManager.Tests.Unit
 						}
 					}
 				}"),
-				generatedDoc.Definition,
-				new JTokenEqualityComparer());
+				generatedDoc.RawJsonObject,
+				new JsonObjectComparier());
 		}
 
 		private static IFile File(string name)
