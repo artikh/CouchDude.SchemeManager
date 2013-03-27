@@ -29,11 +29,12 @@ namespace CouchDude.SchemeManager.Console
 {
 	class Program
 	{
-		private static readonly ILog Log = LogManager.GetCurrentClassLogger();
+		private static ILog log;
 
 		private const int OkReturnCode = 0;
 		private const int IncorrectOptionsReturnCode = 1;
 		private const int UnknownErrorReturnCode = 2;
+		
 
 		static int Main(string[] args)
 		{
@@ -46,13 +47,14 @@ namespace CouchDude.SchemeManager.Console
 			}
 
 			LogManager.Adapter = new ConsoleOutLoggerFactoryAdapter(options.Verbose ? LogLevel.Info: LogLevel.Warn, false, true, true, null);
+			log = LogManager.GetCurrentClassLogger();
 
 			var directoryPath = !string.IsNullOrWhiteSpace(options.BaseDirectory)? options.BaseDirectory: Environment.CurrentDirectory;
 
 			var baseDirectory = new DirectoryInfo(directoryPath);
 			if(!baseDirectory.Exists)
 			{
-				Log.ErrorFormat("Provided directory {0} does not exist.", options.BaseDirectory);
+				log.ErrorFormat("Provided directory {0} does not exist.", options.BaseDirectory);
 				return IncorrectOptionsReturnCode;
 			}
 
@@ -67,7 +69,7 @@ namespace CouchDude.SchemeManager.Console
 				}
 				catch (Exception e)
 				{
-					Log.ErrorFormat(e.ToString());
+					log.ErrorFormat(e.ToString());
 					return UnknownErrorReturnCode;
 				}
 
@@ -113,17 +115,17 @@ namespace CouchDude.SchemeManager.Console
 
 			if(!Uri.TryCreate(options.DatabaseUrl, UriKind.RelativeOrAbsolute, out uri))
 			{
-				Log.ErrorFormat("Provided URI is malformed: {0}", options.DatabaseUrl);
+				log.ErrorFormat("Provided URI is malformed: {0}", options.DatabaseUrl);
 				Environment.Exit(IncorrectOptionsReturnCode);
 			}
 			if (uri.Scheme != "http" && uri.Scheme != "https")
 			{
-				Log.ErrorFormat("Provided URI is not of HTTP(S) scheme: {0}", options.DatabaseUrl);
+				log.ErrorFormat("Provided URI is not of HTTP(S) scheme: {0}", options.DatabaseUrl);
 				Environment.Exit(IncorrectOptionsReturnCode);
 			}
 			if (!uri.IsAbsoluteUri)
 			{
-				Log.ErrorFormat("Provided URI is not absolute: {0}", options.DatabaseUrl);
+				log.ErrorFormat("Provided URI is not absolute: {0}", options.DatabaseUrl);
 				Environment.Exit(IncorrectOptionsReturnCode);
 			}
 			return uri;

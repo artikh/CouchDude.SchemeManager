@@ -1,4 +1,5 @@
-﻿#region Licence Info 
+﻿
+#region Licence Info 
 /*
 	Copyright 2011 · Artem Tikhomirov, Stas Girkin, Mikhail Anikeev-Naumenko																					
 																																					
@@ -36,15 +37,25 @@ namespace CouchDude.SchemeManager
 		/// <inheritdoc/>
 		public bool Equals(DesignDocument other)
 		{
+			base.Eq
 			return GetWithoutRev(this).Equals(GetWithoutRev(other));
 		}
 
-		private static Document GetWithoutRev(Document document)
+		private static JsonObject GetWithoutRev(Document document)
 		{
 			if (ReferenceEquals(document, null)) return null;
-			return document.RawJsonObject.ContainsKey(RevisionPropertyName)
-				? new Document(new JsonObject(document.RawJsonObject.Where(kvp => kvp.Key != RevisionPropertyName)))
-				: document;
+
+
+			var rawJsonObject = document.RawJsonObject;
+			
+			if (rawJsonObject.ContainsKey(RevisionPropertyName))
+			{
+				var objectPropertiesWithoutRev = rawJsonObject.Where(kvp => kvp.Key != RevisionPropertyName);
+				var objectWithoutRev = new JsonObject(objectPropertiesWithoutRev);
+				return objectWithoutRev;
+			}
+
+			return rawJsonObject;
 		}
 
 		/// <inheritdoc/>
